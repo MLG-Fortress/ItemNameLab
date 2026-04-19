@@ -1,5 +1,7 @@
 package com.robomwm.itemnamelab;
 
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -50,7 +52,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         ItemSource source = ItemSource.fromArgument(args[0]);
         if (source == null)
         {
-            player.sendMessage(ChatColor.RED + "Unknown source '" + args[0] + "'.");
+            sendPlain(player, "Unknown source '" + args[0] + "'.");
             sendUsage(player, label);
             return true;
         }
@@ -58,7 +60,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         NameMethod method = args.length > 1 ? NameMethod.fromArgument(args[1]) : NameMethod.ALL;
         if (method == null)
         {
-            player.sendMessage(ChatColor.RED + "Unknown method '" + args[1] + "'.");
+            sendPlain(player, "Unknown method '" + args[1] + "'.");
             sendUsage(player, label);
             return true;
         }
@@ -69,7 +71,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
             ItemStack inHand = player.getInventory().getItemInMainHand();
             if (inHand == null || inHand.getType().isAir())
             {
-                player.sendMessage(ChatColor.RED + "Hold an item first, or use /" + label + " generated " + method.argument + ".");
+                sendPlain(player, "Hold an item first, or use /" + label + " generated " + method.argument + ".");
                 return true;
             }
 
@@ -97,11 +99,10 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
 
     private void sendUsage(Player player, String label)
     {
-        player.sendMessage(ChatColor.GOLD + "[ItemNameLab] " + ChatColor.YELLOW
-                + "/" + label + " <" + String.join("|", ItemSource.arguments()) + "> [" + String.join("|", NameMethod.arguments()) + "]");
-        player.sendMessage(ChatColor.GRAY + "generated: create sample items and inspect them");
-        player.sendMessage(ChatColor.GRAY + "hand: inspect only the item in your main hand");
-        player.sendMessage(ChatColor.GRAY + "omit the method to inspect all available name methods");
+        sendPlain(player, "[ItemNameLab] /" + label + " <" + String.join("|", ItemSource.arguments()) + "> [" + String.join("|", NameMethod.arguments()) + "]");
+        sendPlain(player, "generated: create sample items and inspect them");
+        sendPlain(player, "hand: inspect only the item in your main hand");
+        sendPlain(player, "omit the method to inspect all available name methods");
     }
 
     private void giveItems(Player player, List<SampleItem> items)
@@ -114,42 +115,37 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         for (ItemStack item : overflow.values())
             player.getWorld().dropItemNaturally(player.getLocation(), item);
 
-        player.sendMessage(ChatColor.GOLD + "[ItemNameLab] " + ChatColor.YELLOW
-                + "Generated " + items.size() + " sample items.");
+        sendPlain(player, "[ItemNameLab] Generated " + items.size() + " sample items.");
         if (!overflow.isEmpty())
-            player.sendMessage(ChatColor.RED + "[ItemNameLab] Inventory was full, so overflow items were dropped at your feet.");
+            sendPlain(player, "[ItemNameLab] Inventory was full, so overflow items were dropped at your feet.");
     }
 
     private void inspectItems(Player player, NameMethod selectedMethod, List<SampleItem> items, ItemSource source)
     {
         List<NameMethod> methods = selectedMethod == NameMethod.ALL ? NameMethod.inspectableMethods() : Collections.singletonList(selectedMethod);
         String methodDescription = selectedMethod == NameMethod.ALL ? "all methods" : selectedMethod.signature;
-        player.sendMessage(ChatColor.AQUA + "[ItemNameLab] "
-                + ChatColor.WHITE + "Inspecting " + items.size() + " item(s) using "
-                + ChatColor.YELLOW + methodDescription
-                + ChatColor.WHITE + " from " + ChatColor.YELLOW + source.argument + ChatColor.WHITE + ".");
+        sendPlain(player, "[ItemNameLab] Inspecting " + items.size() + " item(s) using " + methodDescription + " from " + source.argument + ".");
 
         for (SampleItem sample : items)
         {
-            player.sendMessage(ChatColor.GOLD + "[ItemNameLab] " + ChatColor.YELLOW + sample.label
-                    + ChatColor.GRAY + " (" + sample.item.getType() + ")"
-                    + ChatColor.DARK_GRAY + " - " + sample.description);
+            sendPlain(player, "[ItemNameLab] " + sample.label
+                    + " (" + sample.item.getType() + ")"
+                    + " - " + sample.description);
 
             for (NameMethod method : methods)
             {
                 NameResult result = resolveName(sample.item, method);
-                player.sendMessage(ChatColor.WHITE + "  " + ChatColor.YELLOW + method.signature
-                        + ChatColor.WHITE + " -> " + ChatColor.GREEN + result.value);
+                sendValue(player, "  " + method.signature + " -> ", result.value);
 
                 if (result.exception != null)
                 {
-                    player.sendMessage(ChatColor.RED + "    hit exception: "
+                    sendPlain(player, "    hit exception: "
                             + result.exception.getClass().getSimpleName()
                             + (result.exception.getMessage() == null ? "" : " - " + result.exception.getMessage()));
                 }
 
                 if (result.usedFallback)
-                    player.sendMessage(ChatColor.GRAY + "    fallback used after exception");
+                    sendPlain(player, "    fallback used after exception");
             }
         }
     }
@@ -162,48 +158,48 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
                         ItemMeta meta = item.getItemMeta();
-                        return meta != null && meta.hasDisplayName() ? meta.getDisplayName() : "<none>";
+                        return NameResult.success(legacyComponents(meta != null && meta.hasDisplayName() ? meta.getDisplayName() : "<none>"));
                     }
                 });
             case ITEM:
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
                         ItemMeta meta = item.getItemMeta();
-                        return meta != null && meta.hasItemName() ? meta.getItemName() : "<none>";
+                        return NameResult.success(legacyComponents(meta != null && meta.hasItemName() ? meta.getItemName() : "<none>"));
                     }
                 });
             case LOCALIZED:
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
                         ItemMeta meta = item.getItemMeta();
-                        return meta != null && meta.hasLocalizedName() ? meta.getLocalizedName() : "<none>";
+                        return NameResult.success(legacyComponents(meta != null && meta.hasLocalizedName() ? meta.getLocalizedName() : "<none>"));
                     }
                 });
             case I18N:
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
-                        return item.getI18NDisplayName();
+                        return NameResult.success(legacyComponents(item.getI18NDisplayName()));
                     }
                 });
             case EFFECTIVE:
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
-                        return describeEffectiveName(item);
+                        return NameResult.success(describeEffectiveName(item));
                     }
                 });
             case EFFECTIVE_FALLBACK:
@@ -213,45 +209,45 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                 }
                 catch (Throwable throwable)
                 {
-                    return NameResult.fallback(prettyMaterialName(item), throwable);
+                    return NameResult.fallback(plainComponents(prettyMaterialName(item)), throwable);
                 }
             case TRANSLATION_KEY:
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
-                        return item.getTranslationKey();
+                        return NameResult.success(plainComponents(item.getTranslationKey()));
                     }
                 });
             case TYPE_TRANSLATION_KEY:
                 return attempt(new ValueSupplier()
                 {
                     @Override
-                    public String get() throws Throwable
+                    public NameResult get() throws Throwable
                     {
-                        return item.getType().getTranslationKey();
+                        return NameResult.success(plainComponents(item.getType().getTranslationKey()));
                     }
                 });
             case MATERIAL:
-                return NameResult.success(prettyMaterialName(item));
+                return NameResult.success(plainComponents(prettyMaterialName(item)));
             case CASCADE:
                 ItemMeta meta = item.getItemMeta();
                 if (meta != null && meta.hasDisplayName())
-                    return NameResult.success(meta.getDisplayName());
+                    return NameResult.success(legacyComponents(meta.getDisplayName()));
                 if (meta != null && meta.hasItemName())
-                    return NameResult.success(meta.getItemName());
+                    return NameResult.success(legacyComponents(meta.getItemName()));
                 try
                 {
                     return NameResult.success(describeEffectiveName(item));
                 }
                 catch (Throwable throwable)
                 {
-                    return NameResult.fallback(prettyMaterialName(item), throwable);
+                    return NameResult.fallback(plainComponents(prettyMaterialName(item)), throwable);
                 }
             case ALL:
             default:
-                return NameResult.success("<unsupported>");
+                return NameResult.success(plainComponents("<unsupported>"));
         }
     }
 
@@ -259,7 +255,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
     {
         try
         {
-            return NameResult.success(supplier.get());
+            return supplier.get();
         }
         catch (Throwable throwable)
         {
@@ -267,28 +263,23 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         }
     }
 
-    private String describeEffectiveName(ItemStack item) throws Throwable
+    private BaseComponent[] describeEffectiveName(ItemStack item) throws Throwable
     {
         Object component = item.effectiveName();
-        try
-        {
-            return serializeAdventureComponent(component);
-        }
-        catch (Throwable ignored)
-        {
-            return String.valueOf(component);
-        }
+        return serializeAdventureComponent(component);
     }
 
-    private String serializeAdventureComponent(Object component) throws Throwable
+    private BaseComponent[] serializeAdventureComponent(Object component) throws Throwable
     {
-        Class<?> serializerClass = Class.forName("net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer");
+        Class<?> serializerClass = Class.forName("net.kyori.adventure.text.serializer.gson.GsonComponentSerializer");
         Class<?> componentClass = Class.forName("net.kyori.adventure.text.Component");
-        Method plainTextMethod = serializerClass.getMethod("plainText");
-        Object serializer = plainTextMethod.invoke(null);
+        Method gsonMethod = serializerClass.getMethod("gson");
+        Object serializer = gsonMethod.invoke(null);
         Method serializeMethod = serializerClass.getMethod("serialize", componentClass);
-        Object serialized = serializeMethod.invoke(serializer, component);
-        return normalize(String.valueOf(serialized));
+        String serialized = String.valueOf(serializeMethod.invoke(serializer, component));
+        Class<?> componentSerializerClass = Class.forName("net.md_5.bungee.chat.ComponentSerializer");
+        Method parseMethod = componentSerializerClass.getMethod("parse", String.class);
+        return (BaseComponent[]) parseMethod.invoke(null, serialized);
     }
 
     private List<SampleItem> createSampleItems()
@@ -365,6 +356,32 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         return item.getType().name().toLowerCase(Locale.ENGLISH).replace('_', ' ');
     }
 
+    private void sendPlain(Player player, String message)
+    {
+        sendValue(player, "", plainComponents(message));
+    }
+
+    private void sendValue(Player player, String prefix, BaseComponent[] value)
+    {
+        TextComponent message = new TextComponent(prefix);
+        if (value != null)
+        {
+            for (BaseComponent component : value)
+                message.addExtra(component);
+        }
+        player.spigot().sendMessage(message);
+    }
+
+    private BaseComponent[] plainComponents(String value)
+    {
+        return new BaseComponent[] { new TextComponent(normalize(value)) };
+    }
+
+    private BaseComponent[] legacyComponents(String value)
+    {
+        return TextComponent.fromLegacyText(normalize(value));
+    }
+
     private String normalize(String value)
     {
         if (value == null)
@@ -384,7 +401,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
 
     private interface ValueSupplier
     {
-        String get() throws Throwable;
+        NameResult get() throws Throwable;
     }
 
     private static final class SampleItem
@@ -403,30 +420,30 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
 
     private static final class NameResult
     {
-        private final String value;
+        private final BaseComponent[] value;
         private final Throwable exception;
         private final boolean usedFallback;
 
-        private NameResult(String value, Throwable exception, boolean usedFallback)
+        private NameResult(BaseComponent[] value, Throwable exception, boolean usedFallback)
         {
             this.value = value;
             this.exception = exception;
             this.usedFallback = usedFallback;
         }
 
-        private static NameResult success(String value)
+        private static NameResult success(BaseComponent[] value)
         {
-            return new NameResult(value == null ? "<null>" : value, null, false);
+            return new NameResult(value, null, false);
         }
 
         private static NameResult failure(Throwable throwable)
         {
-            return new NameResult("<exception>", throwable, false);
+            return new NameResult(new BaseComponent[] { new TextComponent("<exception>") }, throwable, false);
         }
 
-        private static NameResult fallback(String value, Throwable throwable)
+        private static NameResult fallback(BaseComponent[] value, Throwable throwable)
         {
-            return new NameResult(value == null ? "<null>" : value, throwable, true);
+            return new NameResult(value, throwable, true);
         }
     }
 
