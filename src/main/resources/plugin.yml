@@ -7,4 +7,4 @@ description: Test plugin for comparing different item name APIs on Purpur and Sp
 commands:
   itemnamelab:
     description: Generate sample items and inspect how different APIs resolve their names.
-    usage: /itemnamelab <generated|hand> [all|display|item|localized|i18n|effective|effectivefallback|translation|typetranslation|material|cascade]
+    usage: /itemnamelab <generated|hand> [all|display|item|customname|localized|i18n|effective|effectivefallback|translation|translated|typetranslation|material|cascade]

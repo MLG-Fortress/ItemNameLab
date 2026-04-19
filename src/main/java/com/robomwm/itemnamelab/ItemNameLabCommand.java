@@ -1,7 +1,10 @@
 package com.robomwm.itemnamelab;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.TranslatableComponent;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -38,7 +41,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
     {
         if (!(sender instanceof Player))
         {
-            sender.sendMessage(ChatColor.RED + "Only players can use this command.");
+            sender.sendMessage("Only players can use this command.");
             return true;
         }
 
@@ -174,6 +177,15 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                         return NameResult.success(legacyComponents(meta != null && meta.hasItemName() ? meta.getItemName() : "<none>"));
                     }
                 });
+            case CUSTOM_NAME:
+                return attempt(new ValueSupplier()
+                {
+                    @Override
+                    public NameResult get() throws Throwable
+                    {
+                        return NameResult.success(describeCustomName(item));
+                    }
+                });
             case LOCALIZED:
                 return attempt(new ValueSupplier()
                 {
@@ -209,7 +221,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                 }
                 catch (Throwable throwable)
                 {
-                    return NameResult.fallback(plainComponents(prettyMaterialName(item)), throwable);
+                    return NameResult.fallback(plainComponents(rawMaterialName(item)), throwable);
                 }
             case TRANSLATION_KEY:
                 return attempt(new ValueSupplier()
@@ -218,6 +230,15 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                     public NameResult get() throws Throwable
                     {
                         return NameResult.success(plainComponents(item.getTranslationKey()));
+                    }
+                });
+            case TRANSLATED:
+                return attempt(new ValueSupplier()
+                {
+                    @Override
+                    public NameResult get() throws Throwable
+                    {
+                        return NameResult.success(translatedComponents(item.getTranslationKey()));
                     }
                 });
             case TYPE_TRANSLATION_KEY:
@@ -230,7 +251,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                     }
                 });
             case MATERIAL:
-                return NameResult.success(plainComponents(prettyMaterialName(item)));
+                return NameResult.success(plainComponents(rawMaterialName(item)));
             case CASCADE:
                 ItemMeta meta = item.getItemMeta();
                 if (meta != null && meta.hasDisplayName())
@@ -243,7 +264,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
                 }
                 catch (Throwable throwable)
                 {
-                    return NameResult.fallback(plainComponents(prettyMaterialName(item)), throwable);
+                    return NameResult.fallback(plainComponents(rawMaterialName(item)), throwable);
                 }
             case ALL:
             default:
@@ -269,6 +290,18 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         return serializeAdventureComponent(component);
     }
 
+    private BaseComponent[] describeCustomName(ItemStack item) throws Throwable
+    {
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !meta.hasCustomName())
+            return plainComponents("<none>");
+
+        Object component = meta.customName();
+        if (component == null)
+            return plainComponents("<null>");
+        return serializeAdventureComponent(component);
+    }
+
     private BaseComponent[] serializeAdventureComponent(Object component) throws Throwable
     {
         Class<?> serializerClass = Class.forName("net.kyori.adventure.text.serializer.gson.GsonComponentSerializer");
@@ -288,6 +321,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         items.add(new SampleItem("plain-diamond-sword", new ItemStack(Material.DIAMOND_SWORD), "No custom name metadata"));
         items.add(new SampleItem("display-name-paper", createDisplayNameItem(), "Only setDisplayName(...)"));
         items.add(new SampleItem("item-name-book", createItemNameItem(), "Only setItemName(...)"));
+        items.add(new SampleItem("custom-name-name-tag", createCustomNameItem(), "Only customName(Component)"));
         items.add(new SampleItem("both-named-shield", createBothNamedItem(), "Display name and item name are different"));
         items.add(new SampleItem("localized-compass", createLocalizedItem(), "Only setLocalizedName(...)"));
         items.add(new SampleItem("metadata-heavy-axe", createMetadataHeavyItem(), "Display name plus lore, enchant, flags, and model data"));
@@ -310,6 +344,25 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         ItemMeta meta = item.getItemMeta();
         meta.setItemName(ChatColor.AQUA + "Item Name Only");
         meta.setLore(Arrays.asList(ChatColor.GRAY + "Sample: item-name"));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private ItemStack createCustomNameItem()
+    {
+        ItemStack item = new ItemStack(Material.NAME_TAG);
+        ItemMeta meta = item.getItemMeta();
+        try
+        {
+            meta.customName(Component.text("Custom Name Only", NamedTextColor.BLUE));
+            meta.setLore(Arrays.asList(ChatColor.GRAY + "Sample: custom-name"));
+        }
+        catch (Throwable throwable)
+        {
+            meta.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Sample: custom-name unavailable",
+                    ChatColor.DARK_GRAY + throwable.getClass().getSimpleName()));
+        }
         item.setItemMeta(meta);
         return item;
     }
@@ -351,9 +404,9 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         return item;
     }
 
-    private String prettyMaterialName(ItemStack item)
+    private String rawMaterialName(ItemStack item)
     {
-        return item.getType().name().toLowerCase(Locale.ENGLISH).replace('_', ' ');
+        return item.getType().name();
     }
 
     private void sendPlain(Player player, String message)
@@ -375,6 +428,13 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
     private BaseComponent[] plainComponents(String value)
     {
         return new BaseComponent[] { new TextComponent(normalize(value)) };
+    }
+
+    private BaseComponent[] translatedComponents(String translationKey)
+    {
+        if (translationKey == null || translationKey.isEmpty())
+            return plainComponents(normalize(translationKey));
+        return new BaseComponent[] { new TranslatableComponent(translationKey) };
     }
 
     private BaseComponent[] legacyComponents(String value)
@@ -483,11 +543,13 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
         ALL("all", "all methods"),
         DISPLAY("display", "ItemMeta#getDisplayName()"),
         ITEM("item", "ItemMeta#getItemName()"),
+        CUSTOM_NAME("customname", "ItemMeta#customName()"),
         LOCALIZED("localized", "ItemMeta#getLocalizedName()"),
         I18N("i18n", "ItemStack#getI18NDisplayName()"),
         EFFECTIVE("effective", "ItemStack#effectiveName()"),
         EFFECTIVE_FALLBACK("effectivefallback", "ItemStack#effectiveName() with fallback"),
         TRANSLATION_KEY("translation", "ItemStack#getTranslationKey()"),
+        TRANSLATED("translated", "TranslatableComponent(ItemStack#getTranslationKey())"),
         TYPE_TRANSLATION_KEY("typetranslation", "Material#getTranslationKey()"),
         MATERIAL("material", "Material#name()"),
         CASCADE("cascade", "display -> item -> ItemStack#effectiveName() -> Material#name()");
