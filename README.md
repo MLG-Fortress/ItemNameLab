@@ -5,16 +5,16 @@
 It uses a single command:
 
 ```text
-/itemnamelab <all|display|item|localized|i18n|effective|effectivefallback|translation|typetranslation|material|cascade> [generated|hand]
+/itemnamelab <generated|hand> [all|display|item|localized|i18n|effective|effectivefallback|translation|typetranslation|material|cascade]
 ```
 
 Examples:
 
 ```text
-/itemnamelab all
-/itemnamelab effective generated
-/itemnamelab effective hand
-/itemnamelab cascade hand
+/itemnamelab generated
+/itemnamelab generated effective
+/itemnamelab hand effective
+/itemnamelab hand cascade
 ```
 
 What it does:

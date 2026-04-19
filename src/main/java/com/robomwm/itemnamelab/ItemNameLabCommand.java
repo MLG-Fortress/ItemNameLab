@@ -47,18 +47,18 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
             return true;
         }
 
-        NameMethod method = NameMethod.fromArgument(args[0]);
-        if (method == null)
+        ItemSource source = ItemSource.fromArgument(args[0]);
+        if (source == null)
         {
-            player.sendMessage(ChatColor.RED + "Unknown method '" + args[0] + "'.");
+            player.sendMessage(ChatColor.RED + "Unknown source '" + args[0] + "'.");
             sendUsage(player, label);
             return true;
         }
 
-        ItemSource source = args.length > 1 ? ItemSource.fromArgument(args[1]) : ItemSource.GENERATED;
-        if (source == null)
+        NameMethod method = args.length > 1 ? NameMethod.fromArgument(args[1]) : NameMethod.ALL;
+        if (method == null)
         {
-            player.sendMessage(ChatColor.RED + "Unknown source '" + args[1] + "'.");
+            player.sendMessage(ChatColor.RED + "Unknown method '" + args[1] + "'.");
             sendUsage(player, label);
             return true;
         }
@@ -69,7 +69,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
             ItemStack inHand = player.getInventory().getItemInMainHand();
             if (inHand == null || inHand.getType().isAir())
             {
-                player.sendMessage(ChatColor.RED + "Hold an item first, or use /" + label + " " + method.argument + " generated.");
+                player.sendMessage(ChatColor.RED + "Hold an item first, or use /" + label + " generated " + method.argument + ".");
                 return true;
             }
 
@@ -89,18 +89,19 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args)
     {
         if (args.length == 1)
-            return partialMatches(args[0], NameMethod.arguments());
+            return partialMatches(args[0], ItemSource.arguments());
         if (args.length == 2)
-            return partialMatches(args[1], ItemSource.arguments());
+            return partialMatches(args[1], NameMethod.arguments());
         return Collections.emptyList();
     }
 
     private void sendUsage(Player player, String label)
     {
         player.sendMessage(ChatColor.GOLD + "[ItemNameLab] " + ChatColor.YELLOW
-                + "/" + label + " <" + String.join("|", NameMethod.arguments()) + "> [generated|hand]");
+                + "/" + label + " <" + String.join("|", ItemSource.arguments()) + "> [" + String.join("|", NameMethod.arguments()) + "]");
         player.sendMessage(ChatColor.GRAY + "generated: create sample items and inspect them");
         player.sendMessage(ChatColor.GRAY + "hand: inspect only the item in your main hand");
+        player.sendMessage(ChatColor.GRAY + "omit the method to inspect all available name methods");
     }
 
     private void giveItems(Player player, List<SampleItem> items)
@@ -122,9 +123,10 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
     private void inspectItems(Player player, NameMethod selectedMethod, List<SampleItem> items, ItemSource source)
     {
         List<NameMethod> methods = selectedMethod == NameMethod.ALL ? NameMethod.inspectableMethods() : Collections.singletonList(selectedMethod);
+        String methodDescription = selectedMethod == NameMethod.ALL ? "all methods" : selectedMethod.signature;
         player.sendMessage(ChatColor.AQUA + "[ItemNameLab] "
                 + ChatColor.WHITE + "Inspecting " + items.size() + " item(s) using "
-                + ChatColor.YELLOW + selectedMethod.argument
+                + ChatColor.YELLOW + methodDescription
                 + ChatColor.WHITE + " from " + ChatColor.YELLOW + source.argument + ChatColor.WHITE + ".");
 
         for (SampleItem sample : items)
@@ -136,7 +138,7 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
             for (NameMethod method : methods)
             {
                 NameResult result = resolveName(sample.item, method);
-                player.sendMessage(ChatColor.WHITE + "  " + ChatColor.YELLOW + method.argument
+                player.sendMessage(ChatColor.WHITE + "  " + ChatColor.YELLOW + method.signature
                         + ChatColor.WHITE + " -> " + ChatColor.GREEN + result.value);
 
                 if (result.exception != null)
@@ -461,23 +463,25 @@ public class ItemNameLabCommand implements CommandExecutor, TabCompleter
 
     private enum NameMethod
     {
-        ALL("all"),
-        DISPLAY("display"),
-        ITEM("item"),
-        LOCALIZED("localized"),
-        I18N("i18n"),
-        EFFECTIVE("effective"),
-        EFFECTIVE_FALLBACK("effectivefallback"),
-        TRANSLATION_KEY("translation"),
-        TYPE_TRANSLATION_KEY("typetranslation"),
-        MATERIAL("material"),
-        CASCADE("cascade");
+        ALL("all", "all methods"),
+        DISPLAY("display", "ItemMeta#getDisplayName()"),
+        ITEM("item", "ItemMeta#getItemName()"),
+        LOCALIZED("localized", "ItemMeta#getLocalizedName()"),
+        I18N("i18n", "ItemStack#getI18NDisplayName()"),
+        EFFECTIVE("effective", "ItemStack#effectiveName()"),
+        EFFECTIVE_FALLBACK("effectivefallback", "ItemStack#effectiveName() with fallback"),
+        TRANSLATION_KEY("translation", "ItemStack#getTranslationKey()"),
+        TYPE_TRANSLATION_KEY("typetranslation", "Material#getTranslationKey()"),
+        MATERIAL("material", "Material#name()"),
+        CASCADE("cascade", "display -> item -> ItemStack#effectiveName() -> Material#name()");
 
         private final String argument;
+        private final String signature;
 
-        NameMethod(String argument)
+        NameMethod(String argument, String signature)
         {
             this.argument = argument;
+            this.signature = signature;
         }
 
         private static NameMethod fromArgument(String value)

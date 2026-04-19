@@ -6,7 +6,7 @@
 
     <groupId>com.robomwm</groupId>
     <artifactId>ItemNameLab</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>ItemNameLab</name>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
