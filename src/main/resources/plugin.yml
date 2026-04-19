@@ -1,0 +1,10 @@
+name: ${project.name}
+main: com.robomwm.itemnamelab.ItemNameLabPlugin
+version: ${project.version}
+api-version: '1.21'
+author: RoboMWM
+description: Test plugin for comparing different item name APIs on Purpur and Spigot.
+commands:
+  itemnamelab:
+    description: Generate sample items and inspect how different APIs resolve their names.
+    usage: /itemnamelab <all|display|item|localized|i18n|effective|effectivefallback|translation|typetranslation|material|cascade> [generated|hand]
